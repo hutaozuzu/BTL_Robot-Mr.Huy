@@ -181,6 +181,18 @@ function [modelHandle, modelPath] = build_simscape_robot(varargin)
     set_param(modelName, 'Solver', 'daessc');
     set_param(modelName, 'MaxStep', '0.005');
     set_param(modelName, 'StopTime', '0.5');
+
+    % Set simple filenames on Visual blocks and add auto-path initialization callbacks
+    visLinks = {'base', 'link1', 'link2', 'link3', 'link4'};
+    for k = 1:numel(visLinks)
+        vPath = [modelName, '/', visLinks{k}, '/Visual'];
+        if getSimulinkBlockHandle(vPath) ~= -1
+            set_param(vPath, 'ExtGeomFileName', [visLinks{k}, '.dae']);
+        end
+    end
+    init_code = sprintf('%% Auto-add paths for Simscape model\nm_dir = fileparts(which(''%s.slx''));\nif ~isempty(m_dir)\n    addpath(m_dir);\n    addpath(fullfile(m_dir, ''meshes''));\n    addpath(fullfile(m_dir, ''urdf''));\n    p_dir = fileparts(m_dir);\n    if exist(p_dir, ''dir'')\n        addpath(fullfile(p_dir, ''kinematics''));\n        addpath(fullfile(p_dir, ''trajectory''));\n        addpath(fullfile(p_dir, ''gui''));\n    end\nend\n', modelName);
+    set_param(modelName, 'PreLoadFcn', init_code);
+    set_param(modelName, 'InitFcn', init_code);
     
     % Save Model
     fprintf('  Saving model to: %s\n', targetSlx);
