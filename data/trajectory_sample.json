@@ -1,0 +1,85 @@
+{
+  "trajectory_name": "Standard 8-Step Palletizing Cycle",
+  "version": "1.0",
+  "robot": "myPalletizer 260 Pi",
+  "description": "Canonical 8-stage pick-and-place cycle: Home -> Pick Hover -> Pick Grasp -> Pick Retract -> Transit -> Place Drop -> Place Retract -> Return Home",
+  "units": {
+    "length": "mm",
+    "angle": "deg",
+    "time": "s"
+  },
+  "waypoints": [
+    {
+      "id": 1,
+      "x": 240.0,
+      "y": 0.0,
+      "z": 180.0,
+      "phi": 0.0,
+      "duration": 2.0,
+      "action": "MOVE"
+    },
+    {
+      "id": 2,
+      "x": 220.0,
+      "y": -100.0,
+      "z": 120.0,
+      "phi": 0.0,
+      "duration": 2.0,
+      "action": "MOVE"
+    },
+    {
+      "id": 3,
+      "x": 220.0,
+      "y": -100.0,
+      "z": 40.0,
+      "phi": 0.0,
+      "duration": 1.5,
+      "action": "PICK"
+    },
+    {
+      "id": 4,
+      "x": 220.0,
+      "y": -100.0,
+      "z": 120.0,
+      "phi": 0.0,
+      "duration": 1.5,
+      "action": "MOVE"
+    },
+    {
+      "id": 5,
+      "x": 180.0,
+      "y": 160.0,
+      "z": 140.0,
+      "phi": 0.0,
+      "duration": 2.5,
+      "action": "MOVE"
+    },
+    {
+      "id": 6,
+      "x": 180.0,
+      "y": 160.0,
+      "z": 70.0,
+      "phi": 0.0,
+      "duration": 1.5,
+      "action": "PLACE"
+    },
+    {
+      "id": 7,
+      "x": 180.0,
+      "y": 160.0,
+      "z": 140.0,
+      "phi": 0.0,
+      "duration": 1.5,
+      "action": "MOVE"
+    },
+    {
+      "id": 8,
+      "x": 240.0,
+      "y": 0.0,
+      "z": 180.0,
+      "phi": 0.0,
+      "duration": 2.0,
+      "action": "MOVE"
+    }
+  ]
+}
