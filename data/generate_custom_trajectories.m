@@ -1,10 +1,10 @@
 % GENERATE_CUSTOM_TRAJECTORIES
 % Generates 2D PLANAR trajectories for myPalletizer 260 Pi:
-% 1. "THAY HUY DEP TRAI" (Width = 240 mm, Height = 120 mm)
-% 2. "LOGO BACH KHOA HCM" (Width = 112 mm, Height = 130 mm)
+% 1. "THAY HUY DEP TRAI" (Width = 215.5 mm, Height = 120 mm)
+% 2. "LOGO BACH KHOA HCM" (Width = 138.6 mm, Height = 140 mm)
 %
-% Strictly 2D Planar: All drawing strokes occur on the flat 2D vertical plane
-% X = X_plane (245.0 mm). Pen lifts to X = X_lift (236.0 mm) during transit.
+% Strictly 2D Planar on the vertical plane X = 245.0 mm.
+% Optimized to stay strictly on the geometry contour (no stray moves outside).
 
 clear; clc;
 addpath('d:\Lidar\myPalletizer_BTL\kinematics');
@@ -12,13 +12,13 @@ addpath('d:\Lidar\myPalletizer_BTL\gui');
 
 % 2D Planar Canvas Configuration (mm)
 X_plane = 245.0; % 2D drawing board plane (constant X for all DRAW actions)
-X_lift  = 236.0; % Retracted pen plane for transit (MOVE actions)
+X_lift  = 237.0; % Retracted pen plane for transit (MOVE actions)
 phi_val = 0.0;   % Wrist horizontal (deg)
 t_draw  = 0.40;  % Duration per drawing stroke (s)
-t_lift  = 0.30;  % Duration per lift/transit (s)
+t_lift  = 0.25;  % Duration per lift/transit (s)
 
 %% ========================================================================
-%% PART 1: SUPER-SIZED "THẦY HUY ĐẸP TRAI"
+%% PART 1: SUPER-SIZED "THẦY HUY ĐẸP TRAI" (Strictly on-path 2D)
 %% ========================================================================
 fprintf('Generating Super-Sized Trajectory 1: "THAY HUY DEP TRAI"...\n');
 
@@ -44,11 +44,11 @@ strokes_A_diacritic = [strokes_A, strokes_A_hat, strokes_A_grave];
 strokes_D_diacritic = [strokes_D, strokes_D_bar];
 strokes_E_diacritic = [strokes_E, strokes_E_hat, strokes_E_dot];
 
-% Super-Sized Dimensions (mm):
-w_char   = 22.0; % Character width (2.3x larger!)
-h_char   = 34.0; % Character height (2.1x larger!)
-gap_char = 7.5;  % Gap between letters
-gap_word = 18.0; % Gap between words
+% Expanded Dimensions (mm):
+w_char   = 23.5; % Character width
+h_char   = 36.0; % Character height
+gap_char = 7.0;  % Gap between letters
+gap_word = 16.0; % Gap between words
 
 % Line 1: "THẦY HUY"
 line1_letters = {strokes_T, strokes_H, strokes_A_diacritic, strokes_Y, ...
@@ -60,7 +60,7 @@ line2_letters = {strokes_D_diacritic, strokes_E_diacritic, strokes_P, ...
                  'SPACE', ...
                  strokes_T, strokes_R, strokes_A, strokes_I};
 
-z_line1 = 152.0; % Baseline of Line 1 (mm) -> reaches up to 195 mm
+z_line1 = 150.0; % Baseline of Line 1 (mm) -> reaches up to 198 mm
 z_line2 = 85.0;  % Baseline of Line 2 (mm) -> reaches from 78 to 125 mm
 
 w1_total = (7 * w_char) + (5 * gap_char) + gap_word;
@@ -75,11 +75,9 @@ fprintf('  Line 2 span: Y in [%.1f, %.1f] mm (width = %.1f mm)\n', y2_start, y2_
 wp_list1 = [];
 wp_id = 1;
 
-% Start from Home pose [240, 0, 180, 0]
-wp_list1 = [wp_list1; wp_id, 240.0, 0.0, 180.0, phi_val, 2.0, 0];
-wp_id = wp_id + 1;
+% Flatten all strokes of Line 1 and Line 2 into an ordered cell array of strokes
+all_text_strokes = {};
 
-% Render Line 1
 curr_y = y1_start;
 for i = 1:numel(line1_letters)
     item = line1_letters{i};
@@ -91,31 +89,11 @@ for i = 1:numel(line1_letters)
         stroke = item{s};
         pts_y = curr_y + stroke(:, 1) * w_char;
         pts_z = z_line1 + stroke(:, 2) * h_char;
-        
-        % Lift & transit to start
-        wp_list1 = [wp_list1; wp_id, X_lift, pts_y(1), pts_z(1), phi_val, t_lift, 0];
-        wp_id = wp_id + 1;
-        
-        % Touch down to 2D plane
-        wp_list1 = [wp_list1; wp_id, X_plane, pts_y(1), pts_z(1), phi_val, t_lift*0.7, 1];
-        wp_id = wp_id + 1;
-        
-        % Draw stroke on 2D plane
-        for p = 2:size(stroke, 1)
-            dist_p = hypot(pts_y(p) - pts_y(p-1), pts_z(p) - pts_z(p-1));
-            dur_p = max(0.25, min(0.60, dist_p / 45.0));
-            wp_list1 = [wp_list1; wp_id, X_plane, pts_y(p), pts_z(p), phi_val, dur_p, 1];
-            wp_id = wp_id + 1;
-        end
-        
-        % Lift pen
-        wp_list1 = [wp_list1; wp_id, X_lift, pts_y(end), pts_z(end), phi_val, t_lift*0.7, 0];
-        wp_id = wp_id + 1;
+        all_text_strokes{end+1} = [pts_y, pts_z]; %#ok<AGROW>
     end
     curr_y = curr_y + w_char + gap_char;
 end
 
-% Render Line 2
 curr_y = y2_start;
 for i = 1:numel(line2_letters)
     item = line2_letters{i};
@@ -127,35 +105,50 @@ for i = 1:numel(line2_letters)
         stroke = item{s};
         pts_y = curr_y + stroke(:, 1) * w_char;
         pts_z = z_line2 + stroke(:, 2) * h_char;
-        
-        wp_list1 = [wp_list1; wp_id, X_lift, pts_y(1), pts_z(1), phi_val, t_lift, 0];
-        wp_id = wp_id + 1;
-        
-        wp_list1 = [wp_list1; wp_id, X_plane, pts_y(1), pts_z(1), phi_val, t_lift*0.7, 1];
-        wp_id = wp_id + 1;
-        
-        for p = 2:size(stroke, 1)
-            dist_p = hypot(pts_y(p) - pts_y(p-1), pts_z(p) - pts_z(p-1));
-            dur_p = max(0.25, min(0.60, dist_p / 45.0));
-            wp_list1 = [wp_list1; wp_id, X_plane, pts_y(p), pts_z(p), phi_val, dur_p, 1];
-            wp_id = wp_id + 1;
-        end
-        
-        wp_list1 = [wp_list1; wp_id, X_lift, pts_y(end), pts_z(end), phi_val, t_lift*0.7, 0];
-        wp_id = wp_id + 1;
+        all_text_strokes{end+1} = [pts_y, pts_z]; %#ok<AGROW>
     end
     curr_y = curr_y + w_char + gap_char;
 end
 
-% Return Home
-wp_list1 = [wp_list1; wp_id, 240.0, 0.0, 180.0, phi_val, 2.0, 0];
+% Build waypoint list: Starts directly at stroke 1, no outer Home position
+for s = 1:numel(all_text_strokes)
+    st = all_text_strokes{s};
+    if s == 1
+        % Direct start at first point
+        wp_list1 = [wp_list1; wp_id, X_plane, st(1, 1), st(1, 2), phi_val, 1.0, 1];
+        wp_id = wp_id + 1;
+    else
+        % Lift pen at previous end, move directly to current start, lower to 2D plane
+        prev_end = all_text_strokes{s-1}(end, :);
+        % Lift
+        wp_list1 = [wp_list1; wp_id, X_lift, prev_end(1), prev_end(2), phi_val, 0.15, 0];
+        wp_id = wp_id + 1;
+        % Transit in air
+        wp_list1 = [wp_list1; wp_id, X_lift, st(1, 1), st(1, 2), phi_val, t_lift, 0];
+        wp_id = wp_id + 1;
+        % Lower to draw
+        wp_list1 = [wp_list1; wp_id, X_plane, st(1, 1), st(1, 2), phi_val, 0.15, 1];
+        wp_id = wp_id + 1;
+    end
+    
+    % Draw stroke points
+    for p = 2:size(st, 1)
+        dist_p = hypot(st(p, 1) - st(p-1, 1), st(p, 2) - st(p-1, 2));
+        dur_p = max(0.20, min(0.60, dist_p / 45.0));
+        wp_list1 = [wp_list1; wp_id, X_plane, st(p, 1), st(p, 2), phi_val, dur_p, 1];
+        wp_id = wp_id + 1;
+    end
+end
 
 % Reachability validation
-fprintf('Validating %d points for Super-Sized "THAY HUY DEP TRAI"...\n', size(wp_list1, 1));
+fprintf('Validating %d points for "THAY HUY DEP TRAI"...\n', size(wp_list1, 1));
 for k = 1:size(wp_list1, 1)
-    [~, succ] = inverse_kinematics(wp_list1(k, 2), wp_list1(k, 3), wp_list1(k, 4), deg2rad(wp_list1(k, 5)));
+    [th, succ] = inverse_kinematics(wp_list1(k, 2), wp_list1(k, 3), wp_list1(k, 4), deg2rad(wp_list1(k, 5)));
     if ~succ
         error('Waypoint %d [%.1f, %.1f, %.1f] is unreachable!', k, wp_list1(k, 2), wp_list1(k, 3), wp_list1(k, 4));
+    end
+    if ~check_limits(th, 'joints')
+        error('Waypoint %d violates joint limits!', k);
     end
 end
 fprintf('All %d waypoints are 100%% REACH-VALIDATED!\n', size(wp_list1, 1));
@@ -174,50 +167,61 @@ for k = 1:size(wp_list1, 1)
         wp_list1(k, 1), wp_list1(k, 2), wp_list1(k, 3), wp_list1(k, 4), wp_list1(k, 5), wp_list1(k, 6), act);
 end
 fclose(fid);
-fprintf('Saved Super-Sized CSV: %s\n', csv_file1);
+fprintf('Saved CSV: %s\n', csv_file1);
 
 json_file1 = 'd:\Lidar\myPalletizer_BTL\data\trajectory_thay_huy_dep_trai.json';
-write_json_traj(json_file1, 'Vietnamese Calligraphy: THAY HUY DEP TRAI (Super-Sized)', ...
-    'Robot writes "THAY HUY DEP TRAI" across a 240 mm wide workspace sweep', wp_list1);
-fprintf('Saved Super-Sized JSON: %s\n', json_file1);
+write_json_traj(json_file1, 'Vietnamese Calligraphy: THAY HUY DEP TRAI (2D Planar)', ...
+    'Robot writes "THAY HUY DEP TRAI" in strictly 2D planar canvas X=245mm', wp_list1);
+fprintf('Saved JSON: %s\n', json_file1);
 
 
 %% ========================================================================
-%% PART 2: OFFICIAL HCMUT CREST ("BIỂU TRƯNG ĐẠI HỌC BÁCH KHOA TP.HCM")
+%% PART 2: EXPANDED CONTINUOUS HCMUT CREST ("BIỂU TRƯNG BÁCH KHOA TP.HCM")
 %% ========================================================================
 fprintf('\nGenerating Official Trajectory 2: "HCMUT CREST"...\n');
 
-% Cylindrical canvas and crest dimensions
-y_0   = 0.0;   % Horizontal center on cylinder (mm)
-z_0   = 138.0; % Vertical center elevation (mm)
-R_hex = 31.0;  % Central regular hexagon radius (mm)
+% Expanded dimensions:
+y_0   = 0.0;   % Center Y (mm)
+z_0   = 128.0; % Center Z (mm)
+R_hex = 40.0;  % Hexagon radius (mm) -> Width = 138.6 mm, Height = 140 mm!
 
-% --- Central Regular Hexagon (pointed top 90 deg, pointed bottom 270 deg, vertical sides) ---
 s3 = sqrt(3);
-H1 = [0.0, 1.0];             % Top apex (90 deg)
-H2 = [-s3/2, 0.5];           % Top-left (150 deg)
-H3 = [-s3/2, -0.5];          % Bottom-left (210 deg)
-H4 = [0.0, -1.0];            % Bottom apex (270 deg)
-H5 = [s3/2, -0.5];           % Bottom-right (330 deg)
-H6 = [s3/2, 0.5];            % Top-right (30 deg)
 
-stroke_hex = [H1; H2; H3; H4; H5; H6; H1];
+% Vertices
+H1 = [0.0, 1.0];             % Top apex of hexagon
+H2 = [-s3/2, 0.5];           % Top-left of hexagon
+H3 = [-s3/2, -0.5];          % Bottom-left of hexagon
+H4 = [0.0, -1.0];            % Bottom apex of hexagon
+H5 = [s3/2, -0.5];           % Bottom-right of hexagon
+H6 = [s3/2, 0.5];            % Top-right of hexagon
 
-% --- Three 3D Isometric Cubes at 120-degree intervals ---
-% 1. Top Cube (at 90 deg): outer rim + vertical dividing seam to H1 (does NOT cut into hex)
-top_rim  = [H2; -s3/2, 1.5; 0.0, 2.0; s3/2, 1.5; H6];
-top_seam = [0.0, 2.0; 0.0, 1.0];
+T3 = [0.0, 2.0];             % Top apex of top cube
+T4 = [s3/2, 1.5];
+T2 = [-s3/2, 1.5];
 
-% 2. Bottom-Left Cube (at 210 deg): outer rim + radial dividing seam to H3 (does NOT cut into hex)
-bl_rim  = [H4; -s3/2, -1.5; -s3, -1.0; -s3, 0.0; H2];
-bl_seam = [-s3, -1.0; -s3/2, -0.5];
+R2 = [s3, 0.0];              % Outer right vertices of bottom-right cube
+R3 = [s3, -1.0];
+R4 = [s3/2, -1.5];
 
-% 3. Bottom-Right Cube (at 330 deg): outer rim + radial dividing seam to H5 (does NOT cut into hex)
-br_rim  = [H6; s3, 0.0; s3, -1.0; s3/2, -1.5; H4];
-br_seam = [s3, -1.0; s3/2, -0.5];
+L2 = [-s3/2, -1.5];          % Outer left vertices of bottom-left cube
+L3 = [-s3, -1.0];
+L4 = [-s3, 0.0];
+
+% Continuous single connected path for entire outer geometry + seams + central hexagon:
+% 1. Traces 12 outer edges of the 3 cubes: T3 -> T4 -> H6 -> R2 -> R3 -> R4 -> H4 -> L2 -> L3 -> L4 -> H2 -> T2 -> T3
+% 2. Cuts down top seam: T3 -> H1
+% 3. Traces hexagon with branching seams: H1 -> H6 -> H5 -> R3 -> H5 -> H4 -> H3 -> L3 -> H3 -> H2 -> H1
+geom_path_norm = [ ...
+    T3; T4; H6; R2; R3; R4; H4; L2; L3; L4; H2; T2; T3; ... % Outer boundary (12 edges)
+    H1; ...                                                 % Top vertical seam
+    H6; H5; ...                                             % Hex top-right to bottom-right
+    R3; H5; ...                                             % Bottom-right seam and back
+    H4; H3; ...                                             % Hex bottom to bottom-left
+    L3; H3; ...                                             % Bottom-left seam and back
+    H2; H1 ...                                              % Hex left to top apex
+];
 
 % --- Central Typography: Bold 'BK' (Upper Half of Hexagon) ---
-% Letter 'B': continuous spine + upper bowl + lower bowl
 b_poly = [-0.558, -0.156; ...
           -0.558,  0.470; ...
           -0.200,  0.470; ...
@@ -229,77 +233,78 @@ b_poly = [-0.558, -0.156; ...
           -0.200, -0.156; ...
           -0.558, -0.156];
 
-% Letter 'K': vertical spine + upper diagonal arm + lower diagonal leg
 k_spine = [0.150, -0.156; 0.150, 0.470];
 k_up    = [0.150,  0.150; 0.650, 0.470];
 k_down  = [0.220,  0.190; 0.650, -0.156];
 
-% --- Central Typography: 'TP.HCM' (Lower Half of Hexagon, single dot between P and H, no dot after M) ---
-% 'T': horizontal top bar + vertical stem
+% --- Central Typography: 'TP.HCM' (Lower Half of Hexagon) ---
 t_bar  = [-0.600, -0.238; -0.420, -0.238];
 t_stem = [-0.510, -0.238; -0.510, -0.470];
 
-% 'P': vertical stem + upper loop (closed)
 p_poly = [-0.370, -0.470; ...
           -0.370, -0.238; ...
           -0.240, -0.238; ...
           -0.240, -0.354; ...
           -0.370, -0.354];
 
-% Dot '.': single dot between 'P' and 'H'
 dot_poly = [-0.180, -0.460; -0.170, -0.460];
 
-% 'H': left stem + crossbar + right stem
 h_left  = [-0.070, -0.470; -0.070, -0.238];
 h_bar   = [-0.070, -0.354;  0.070, -0.354];
 h_right = [ 0.070, -0.238;  0.070, -0.470];
 
-% 'C': arc/box contour
 c_poly = [0.290, -0.238; 0.180, -0.238; 0.180, -0.470; 0.290, -0.470];
 
-% 'M': 4-segment capital M
 m_poly = [0.380, -0.470; 0.380, -0.238; 0.490, -0.370; 0.600, -0.238; 0.600, -0.470];
 
-% Aggregate all strokes (NO 'logo bách khoa' text)
-norm_strokes = {stroke_hex, top_rim, top_seam, bl_rim, bl_seam, br_rim, br_seam, ...
-                b_poly, k_spine, k_up, k_down, ...
-                t_bar, t_stem, p_poly, dot_poly, h_left, h_bar, h_right, c_poly, m_poly};
+inner_text_strokes = {b_poly, k_spine, k_up, k_down, ...
+                      t_bar, t_stem, p_poly, dot_poly, h_left, h_bar, h_right, c_poly, m_poly};
 
 wp_list2 = [];
 wp_id2 = 1;
 
-% Start from Home pose [240, 0, 180, 0]
-wp_list2 = [wp_list2; wp_id2, 240.0, 0.0, 180.0, phi_val, 2.0, 0];
+% 1. Draw continuous main geometric crest:
+pts_geom = [y_0 + geom_path_norm(:, 1) * R_hex, z_0 + geom_path_norm(:, 2) * R_hex];
+
+% Start directly at T3 (top apex)
+wp_list2 = [wp_list2; wp_id2, X_plane, pts_geom(1, 1), pts_geom(1, 2), phi_val, 1.0, 1];
 wp_id2 = wp_id2 + 1;
 
-for s = 1:numel(norm_strokes)
-    n_pts = norm_strokes{s};
-    pts = [y_0 + n_pts(:, 1) * R_hex, z_0 + n_pts(:, 2) * R_hex];
-    
-    % Lift & transit to start of stroke
-    wp_list2 = [wp_list2; wp_id2, X_lift, pts(1, 1), pts(1, 2), phi_val, t_lift, 0];
-    wp_id2 = wp_id2 + 1;
-    
-    % Touch down to start drawing on 2D plane
-    wp_list2 = [wp_list2; wp_id2, X_plane, pts(1, 1), pts(1, 2), phi_val, t_lift * 0.7, 1];
-    wp_id2 = wp_id2 + 1;
-    
-    % Draw intermediate segments on 2D plane
-    for p = 2:size(pts, 1)
-        dist_p = hypot(pts(p, 1) - pts(p-1, 1), pts(p, 2) - pts(p-1, 2));
-        dur_p = max(0.20, min(0.60, dist_p / 40.0));
-        wp_list2 = [wp_list2; wp_id2, X_plane, pts(p, 1), pts(p, 2), phi_val, dur_p, 1];
-        wp_id2 = wp_id2 + 1;
-    end
-    
-    % Retract/lift pen at end of stroke
-    wp_list2 = [wp_list2; wp_id2, X_lift, pts(end, 1), pts(end, 2), phi_val, t_lift * 0.7, 0];
+for p = 2:size(pts_geom, 1)
+    dist_p = hypot(pts_geom(p, 1) - pts_geom(p-1, 1), pts_geom(p, 2) - pts_geom(p-1, 2));
+    dur_p = max(0.20, min(0.60, dist_p / 40.0));
+    wp_list2 = [wp_list2; wp_id2, X_plane, pts_geom(p, 1), pts_geom(p, 2), phi_val, dur_p, 1];
     wp_id2 = wp_id2 + 1;
 end
 
-% Return to Home pose [240, 0, 180, 0]
-wp_list2 = [wp_list2; wp_id2, 240.0, 0.0, 180.0, phi_val, 2.0, 0];
+% 2. Draw typography inside hexagon:
+last_pt = pts_geom(end, :); % H1
 
+for s = 1:numel(inner_text_strokes)
+    st = inner_text_strokes{s};
+    st_pts = [y_0 + st(:, 1) * R_hex, z_0 + st(:, 2) * R_hex];
+    
+    % Lift pen at last_pt, step to st_pts(1,:), lower to draw
+    wp_list2 = [wp_list2; wp_id2, X_lift, last_pt(1), last_pt(2), phi_val, 0.15, 0];
+    wp_id2 = wp_id2 + 1;
+    
+    wp_list2 = [wp_list2; wp_id2, X_lift, st_pts(1, 1), st_pts(1, 2), phi_val, t_lift, 0];
+    wp_id2 = wp_id2 + 1;
+    
+    wp_list2 = [wp_list2; wp_id2, X_plane, st_pts(1, 1), st_pts(1, 2), phi_val, 0.15, 1];
+    wp_id2 = wp_id2 + 1;
+    
+    for p = 2:size(st_pts, 1)
+        dist_p = hypot(st_pts(p, 1) - st_pts(p-1, 1), st_pts(p, 2) - st_pts(p-1, 2));
+        dur_p = max(0.15, min(0.50, dist_p / 35.0));
+        wp_list2 = [wp_list2; wp_id2, X_plane, st_pts(p, 1), st_pts(p, 2), phi_val, dur_p, 1];
+        wp_id2 = wp_id2 + 1;
+    end
+    
+    last_pt = st_pts(end, :);
+end
+
+% Stop right at last point of 'M' (NO returning to Home)
 fprintf('Validating %d points for HCMUT Crest...\n', size(wp_list2, 1));
 for k = 1:size(wp_list2, 1)
     [th, succ] = inverse_kinematics(wp_list2(k, 2), wp_list2(k, 3), wp_list2(k, 4), deg2rad(wp_list2(k, 5)));
@@ -328,8 +333,8 @@ fclose(fid);
 fprintf('Saved HCMUT Crest CSV: %s\n', csv_file2);
 
 json_file2 = 'd:\Lidar\myPalletizer_BTL\data\trajectory_logo_bach_khoa.json';
-write_json_traj(json_file2, 'Emblem Drawing: HCMUT Crest (Official)', ...
-    'Robot draws official HCMUT crest with central regular hexagon, 3 isometric cubes at 120 deg, BK and TP.HCM text', wp_list2);
+write_json_traj(json_file2, 'Emblem Drawing: HCMUT Crest (Official 2D Planar)', ...
+    'Robot draws official HCMUT crest with central regular hexagon, 3 isometric cubes, BK and TP.HCM in 2D plane X=245mm', wp_list2);
 fprintf('Saved HCMUT Crest JSON: %s\n', json_file2);
 
 fprintf('\nSUCCESS: Both trajectories generated and verified!\n');

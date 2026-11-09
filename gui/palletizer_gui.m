@@ -744,12 +744,30 @@ function varargout = palletizer_gui(varargin)
         end
         set(handles.table_waypoints, 'Data', table_data);
 
-        % Update Waypoints in 3D Plot
+        % Update Waypoints and Trajectory Trail in 3D Plot
+        has_draw = any(strcmp({wp.action}, 'DRAW'));
         if isvalid(handles.h_waypoints)
-            set(handles.h_waypoints, 'XData', wp_xyz(:, 1), 'YData', wp_xyz(:, 2), 'ZData', wp_xyz(:, 3), 'SizeData', 7);
+            if has_draw
+                set(handles.h_waypoints, 'XData', wp_xyz(:, 1), 'YData', wp_xyz(:, 2), 'ZData', wp_xyz(:, 3), 'SizeData', 4);
+            else
+                set(handles.h_waypoints, 'XData', wp_xyz(:, 1), 'YData', wp_xyz(:, 2), 'ZData', wp_xyz(:, 3), 'SizeData', 7);
+            end
         end
         if isvalid(handles.h_trail)
-            set(handles.h_trail, 'XData', wp_xyz(:, 1), 'YData', wp_xyz(:, 2), 'ZData', wp_xyz(:, 3));
+            if has_draw
+                % Render pure drawing strokes; insert NaN on MOVE transit so air moves do not cross the shape
+                trail_xyz = [];
+                for k = 1:n_wp
+                    if strcmp(wp(k).action, 'DRAW')
+                        trail_xyz = [trail_xyz; wp_xyz(k, :)]; %#ok<AGROW>
+                    elseif ~isempty(trail_xyz) && ~isnan(trail_xyz(end, 1))
+                        trail_xyz = [trail_xyz; NaN, NaN, NaN]; %#ok<AGROW>
+                    end
+                end
+                set(handles.h_trail, 'XData', trail_xyz(:, 1), 'YData', trail_xyz(:, 2), 'ZData', trail_xyz(:, 3));
+            else
+                set(handles.h_trail, 'XData', wp_xyz(:, 1), 'YData', wp_xyz(:, 2), 'ZData', wp_xyz(:, 3));
+            end
         end
 
         [~, fname, fext] = fileparts(filepath);
