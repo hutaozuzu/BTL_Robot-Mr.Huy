@@ -1,18 +1,18 @@
 % GENERATE_CUSTOM_TRAJECTORIES
-% Generates SUPER-SIZED wide-span artistic trajectories for myPalletizer 260 Pi:
+% Generates 2D PLANAR trajectories for myPalletizer 260 Pi:
 % 1. "THAY HUY DEP TRAI" (Width = 240 mm, Height = 120 mm)
 % 2. "LOGO BACH KHOA HCM" (Width = 112 mm, Height = 130 mm)
 %
-% Uses the natural cylindrical arc R ~ 252 mm so the robot arm swings
-% wide across the entire front workspace (Base Yaw theta1 swings > 60 deg,
-% shoulder/elbow span 120 mm vertically).
+% Strictly 2D Planar: All drawing strokes occur on the flat 2D vertical plane
+% X = X_plane (245.0 mm). Pen lifts to X = X_lift (236.0 mm) during transit.
 
 clear; clc;
 addpath('d:\Lidar\myPalletizer_BTL\kinematics');
 addpath('d:\Lidar\myPalletizer_BTL\gui');
 
-R_touch = 252.0; % Pen touching surface radius (mm)
-R_lift  = 238.0; % Pen lifted/retracted radius (mm)
+% 2D Planar Canvas Configuration (mm)
+X_plane = 245.0; % 2D drawing board plane (constant X for all DRAW actions)
+X_lift  = 236.0; % Retracted pen plane for transit (MOVE actions)
 phi_val = 0.0;   % Wrist horizontal (deg)
 t_draw  = 0.40;  % Duration per drawing stroke (s)
 t_lift  = 0.30;  % Duration per lift/transit (s)
@@ -93,27 +93,23 @@ for i = 1:numel(line1_letters)
         pts_z = z_line1 + stroke(:, 2) * h_char;
         
         % Lift & transit to start
-        x_l1 = sqrt(R_lift^2 - pts_y(1)^2);
-        wp_list1 = [wp_list1; wp_id, x_l1, pts_y(1), pts_z(1), phi_val, t_lift, 0];
+        wp_list1 = [wp_list1; wp_id, X_lift, pts_y(1), pts_z(1), phi_val, t_lift, 0];
         wp_id = wp_id + 1;
         
-        % Touch down
-        x_t1 = sqrt(R_touch^2 - pts_y(1)^2);
-        wp_list1 = [wp_list1; wp_id, x_t1, pts_y(1), pts_z(1), phi_val, t_lift*0.7, 1];
+        % Touch down to 2D plane
+        wp_list1 = [wp_list1; wp_id, X_plane, pts_y(1), pts_z(1), phi_val, t_lift*0.7, 1];
         wp_id = wp_id + 1;
         
-        % Draw stroke
+        % Draw stroke on 2D plane
         for p = 2:size(stroke, 1)
-            x_tp = sqrt(R_touch^2 - pts_y(p)^2);
             dist_p = hypot(pts_y(p) - pts_y(p-1), pts_z(p) - pts_z(p-1));
             dur_p = max(0.25, min(0.60, dist_p / 45.0));
-            wp_list1 = [wp_list1; wp_id, x_tp, pts_y(p), pts_z(p), phi_val, dur_p, 1];
+            wp_list1 = [wp_list1; wp_id, X_plane, pts_y(p), pts_z(p), phi_val, dur_p, 1];
             wp_id = wp_id + 1;
         end
         
         % Lift pen
-        x_le = sqrt(R_lift^2 - pts_y(end)^2);
-        wp_list1 = [wp_list1; wp_id, x_le, pts_y(end), pts_z(end), phi_val, t_lift*0.7, 0];
+        wp_list1 = [wp_list1; wp_id, X_lift, pts_y(end), pts_z(end), phi_val, t_lift*0.7, 0];
         wp_id = wp_id + 1;
     end
     curr_y = curr_y + w_char + gap_char;
@@ -132,24 +128,20 @@ for i = 1:numel(line2_letters)
         pts_y = curr_y + stroke(:, 1) * w_char;
         pts_z = z_line2 + stroke(:, 2) * h_char;
         
-        x_l1 = sqrt(R_lift^2 - pts_y(1)^2);
-        wp_list1 = [wp_list1; wp_id, x_l1, pts_y(1), pts_z(1), phi_val, t_lift, 0];
+        wp_list1 = [wp_list1; wp_id, X_lift, pts_y(1), pts_z(1), phi_val, t_lift, 0];
         wp_id = wp_id + 1;
         
-        x_t1 = sqrt(R_touch^2 - pts_y(1)^2);
-        wp_list1 = [wp_list1; wp_id, x_t1, pts_y(1), pts_z(1), phi_val, t_lift*0.7, 1];
+        wp_list1 = [wp_list1; wp_id, X_plane, pts_y(1), pts_z(1), phi_val, t_lift*0.7, 1];
         wp_id = wp_id + 1;
         
         for p = 2:size(stroke, 1)
-            x_tp = sqrt(R_touch^2 - pts_y(p)^2);
             dist_p = hypot(pts_y(p) - pts_y(p-1), pts_z(p) - pts_z(p-1));
             dur_p = max(0.25, min(0.60, dist_p / 45.0));
-            wp_list1 = [wp_list1; wp_id, x_tp, pts_y(p), pts_z(p), phi_val, dur_p, 1];
+            wp_list1 = [wp_list1; wp_id, X_plane, pts_y(p), pts_z(p), phi_val, dur_p, 1];
             wp_id = wp_id + 1;
         end
         
-        x_le = sqrt(R_lift^2 - pts_y(end)^2);
-        wp_list1 = [wp_list1; wp_id, x_le, pts_y(end), pts_z(end), phi_val, t_lift*0.7, 0];
+        wp_list1 = [wp_list1; wp_id, X_lift, pts_y(end), pts_z(end), phi_val, t_lift*0.7, 0];
         wp_id = wp_id + 1;
     end
     curr_y = curr_y + w_char + gap_char;
@@ -285,27 +277,23 @@ for s = 1:numel(norm_strokes)
     pts = [y_0 + n_pts(:, 1) * R_hex, z_0 + n_pts(:, 2) * R_hex];
     
     % Lift & transit to start of stroke
-    x_l1 = sqrt(R_lift^2 - pts(1, 1)^2);
-    wp_list2 = [wp_list2; wp_id2, x_l1, pts(1, 1), pts(1, 2), phi_val, t_lift, 0];
+    wp_list2 = [wp_list2; wp_id2, X_lift, pts(1, 1), pts(1, 2), phi_val, t_lift, 0];
     wp_id2 = wp_id2 + 1;
     
-    % Touch down to start drawing
-    x_t1 = sqrt(R_touch^2 - pts(1, 1)^2);
-    wp_list2 = [wp_list2; wp_id2, x_t1, pts(1, 1), pts(1, 2), phi_val, t_lift * 0.7, 1];
+    % Touch down to start drawing on 2D plane
+    wp_list2 = [wp_list2; wp_id2, X_plane, pts(1, 1), pts(1, 2), phi_val, t_lift * 0.7, 1];
     wp_id2 = wp_id2 + 1;
     
-    % Draw intermediate segments
+    % Draw intermediate segments on 2D plane
     for p = 2:size(pts, 1)
-        x_tp = sqrt(R_touch^2 - pts(p, 1)^2);
         dist_p = hypot(pts(p, 1) - pts(p-1, 1), pts(p, 2) - pts(p-1, 2));
         dur_p = max(0.20, min(0.60, dist_p / 40.0));
-        wp_list2 = [wp_list2; wp_id2, x_tp, pts(p, 1), pts(p, 2), phi_val, dur_p, 1];
+        wp_list2 = [wp_list2; wp_id2, X_plane, pts(p, 1), pts(p, 2), phi_val, dur_p, 1];
         wp_id2 = wp_id2 + 1;
     end
     
     % Retract/lift pen at end of stroke
-    x_le = sqrt(R_lift^2 - pts(end, 1)^2);
-    wp_list2 = [wp_list2; wp_id2, x_le, pts(end, 1), pts(end, 2), phi_val, t_lift * 0.7, 0];
+    wp_list2 = [wp_list2; wp_id2, X_lift, pts(end, 1), pts(end, 2), phi_val, t_lift * 0.7, 0];
     wp_id2 = wp_id2 + 1;
 end
 
